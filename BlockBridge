@@ -1,0 +1,83 @@
+from web3 import Web3
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+class BlockBridge:
+    def __init__(self, eth_infura_url: str, btc_api_url: str = 'https://api.blockcypher.com/v1/btc/main'):
+        self.web3 = Web3(Web3.HTTPProvider(eth_infura_url))
+        if not self.web3.isConnected():
+            raise Exception("Failed to connect to the Ethereum node")
+        self.btc_api_url = btc_api_url
+
+    # Ethereum methods
+    def get_eth_latest_block(self):
+        return self.web3.eth.getBlock('latest')
+
+    def get_eth_balance(self, address: str) -> float:
+        balance_wei = self.web3.eth.getBalance(address)
+        return self.web3.fromWei(balance_wei, 'ether')
+
+    # Bitcoin methods
+    def get_btc_latest_block(self):
+        response = requests.get(f"{self.btc_api_url}")
+        data = response.json()
+        return data
+
+    def get_btc_balance(self, address: str) -> float:
+        response = requests.get(f"{self.btc_api_url}/addrs/{address}/balance")
+        data = response.json()
+        balance_satoshis = data['balance']
+        return balance_satoshis / 1e8  # Convert satoshis to BTC
+
+    # Cross-chain methods
+    def track_cross_chain_assets(self, eth_address: str, btc_address: str) -> pd.DataFrame:
+        eth_balance = self.get_eth_balance(eth_address)
+        btc_balance = self.get_btc_balance(btc_address)
+
+        data = {
+            'chain': ['Ethereum', 'Bitcoin'],
+            'address': [eth_address, btc_address],
+            'balance': [eth_balance, btc_balance]
+        }
+        return pd.DataFrame(data)
+
+    def plot_cross_chain_assets(self, df: pd.DataFrame):
+        plt.figure(figsize=(12, 6))
+        plt.bar(df['chain'], df['balance'])
+        plt.title('Cross-Chain Asset Balances')
+        plt.xlabel('Blockchain')
+        plt.ylabel('Balance')
+        plt.grid(True)
+        plt.show()
+
+# Example Usage
+if __name__ == "__main__":
+    ETH_INFURA_URL = 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID'
+    BTC_ADDRESS = '1BoatSLRHtKNngkdXEeobR76b53LETtpyT'
+    ETH_ADDRESS = '0xYourEthereumAddressHere'
+    
+    block_bridge = BlockBridge(ETH_INFURA_URL)
+
+    # Get Latest Ethereum Block
+    latest_eth_block = block_bridge.get_eth_latest_block()
+    print("Latest Ethereum Block:", latest_eth_block)
+
+    # Get Latest Bitcoin Block
+    latest_btc_block = block_bridge.get_btc_latest_block()
+    print("Latest Bitcoin Block:", latest_btc_block)
+
+    # Get Ethereum Balance
+    eth_balance = block_bridge.get_eth_balance(ETH_ADDRESS)
+    print(f"Ethereum Balance of {ETH_ADDRESS}: {eth_balance} ETH")
+
+    # Get Bitcoin Balance
+    btc_balance = block_bridge.get_btc_balance(BTC_ADDRESS)
+    print(f"Bitcoin Balance of {BTC_ADDRESS}: {btc_balance} BTC")
+
+    # Track and Plot Cross-Chain Assets
+    df = block_bridge.track_cross_chain_assets(ETH_ADDRESS, BTC_ADDRESS)
+    print("Cross-Chain Assets:")
+    print(df)
+    block_bridge.plot_cross_chain_assets(df)
